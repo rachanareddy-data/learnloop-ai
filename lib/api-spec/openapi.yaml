@@ -1,0 +1,316 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: learning
+    description: Deterministic adaptive learning operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /skills:
+    get:
+      operationId: listSkills
+      tags: [learning]
+      summary: List math skills
+      responses:
+        "200":
+          description: Available math skills
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Skill"
+  /skills/{skillId}/question:
+    get:
+      operationId: getPracticeQuestion
+      tags: [learning]
+      summary: Generate the next practice question
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: level
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 1
+            maximum: 5
+            default: 1
+        - name: seed
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0
+        - name: activity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [standard, visual]
+            default: standard
+      responses:
+        "200":
+          description: Generated practice question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+        "404":
+          description: Skill not found
+  /attempts:
+    post:
+      operationId: submitAttempt
+      tags: [learning]
+      summary: Score an answer and recommend the next activity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttemptInput"
+      responses:
+        "200":
+          description: Scored attempt with deterministic feedback
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptResult"
+        "400":
+          description: Invalid attempt
+  /analysis:
+    post:
+      operationId: analyzeThinking
+      tags: [learning]
+      summary: Analyze a student's explanation using the configured learning provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningAnalysisInput"
+      responses:
+        "200":
+          description: Structured learning insight
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningAnalysisResult"
+        "400":
+          description: Invalid explanation
+  /mastery/{skillId}:
+    get:
+      operationId: getMastery
+      tags: [learning]
+      summary: Get mastery summary for a skill
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Mastery summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mastery"
+  /activity:
+    get:
+      operationId: listRecentActivity
+      tags: [learning]
+      summary: List recent learning activity
+      responses:
+        "200":
+          description: Recent attempts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Activity"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Skill:
+      type: object
+      required: [id, name, description, symbol, accent, examples]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        symbol:
+          type: string
+        accent:
+          type: string
+        examples:
+          type: array
+          items:
+            type: string
+    Question:
+      type: object
+      required: [id, skillId, prompt, answer, level, hint]
+      properties:
+        id:
+          type: string
+        skillId:
+          type: string
+        prompt:
+          type: string
+        answer:
+          type: number
+        level:
+          type: number
+        hint:
+          type: string
+        activityType:
+          type: string
+          enum: [standard, visual]
+          default: standard
+    AttemptInput:
+      type: object
+      required: [questionId, skillId, answer, expectedAnswer, level]
+      properties:
+        questionId:
+          type: string
+        skillId:
+          type: string
+        answer:
+          type: number
+        expectedAnswer:
+          type: number
+        level:
+          type: number
+        explanation:
+          type: ["string", "null"]
+    AttemptResult:
+      type: object
+      required: [correct, feedback, explanation, nextLevel, mastery]
+      properties:
+        correct:
+          type: boolean
+        feedback:
+          type: string
+        explanation:
+          type: string
+        nextLevel:
+          type: number
+        mastery:
+          type: number
+        streak:
+          type: number
+        recommendation:
+          type: string
+    LearningAnalysisInput:
+      type: object
+      required: [gradeLevel, skillId, skill, question, correctAnswer, studentAnswer, studentExplanation, previousAttemptCount, previousWasIncorrect, currentDifficulty]
+      properties:
+        gradeLevel:
+          type: number
+          minimum: 1
+          maximum: 6
+        skillId:
+          type: string
+        skill:
+          type: string
+        question:
+          type: string
+        correctAnswer:
+          type: number
+        studentAnswer:
+          type: number
+        studentExplanation:
+          type: string
+          minLength: 1
+          maxLength: 500
+        previousAttemptCount:
+          type: number
+          minimum: 0
+        previousWasIncorrect:
+          type: boolean
+        currentDifficulty:
+          type: number
+          minimum: 1
+          maximum: 5
+    LearningAnalysisResult:
+      type: object
+      required: [explanation, misconception, confidence, recommendedStrategy, recommendedNextActivity]
+      properties:
+        explanation:
+          type: string
+        misconception:
+          type: string
+        confidence:
+          type: string
+          enum: [low, medium, high]
+        recommendedStrategy:
+          type: string
+        recommendedNextActivity:
+          type: string
+          enum: [retry, simpler, visual, similar]
+    Mastery:
+      type: object
+      required: [skillId, attempted, correct, mastery, level, streak]
+      properties:
+        skillId:
+          type: string
+        attempted:
+          type: number
+        correct:
+          type: number
+        mastery:
+          type: number
+        level:
+          type: number
+        streak:
+          type: number
+    Activity:
+      type: object
+      required: [id, skillId, skillName, correct, question, createdAt]
+      properties:
+        id:
+          type: string
+        skillId:
+          type: string
+        skillName:
+          type: string
+        correct:
+          type: boolean
+        question:
+          type: string
+        createdAt:
+          type: string
+
